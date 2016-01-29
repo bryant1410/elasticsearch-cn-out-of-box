@@ -4,7 +4,7 @@
     float: left;
 }
 .node-info {
-    overflow: hidden
+    margin-left: 20px;
 }
 .content-panel {
 	padding-top: 10px;
@@ -307,6 +307,45 @@ textarea {
 .inline-button {
     padding-top: 23px;
 }
+.col-xs-5ths,
+.col-sm-5ths,
+.col-md-5ths,
+.col-lg-5ths {
+    position: relative;
+    min-height: 1px;
+    padding-right: 15px;
+    padding-left: 15px;
+}
+
+.col-xs-5ths {
+    width: 20%;
+    float: left;
+}
+
+@media (min-width: 768px) {
+    .col-sm-5ths {
+        width: 20%;
+        float: left;
+    }
+}
+
+@media (min-width: 992px) {
+    .col-md-5ths {
+        width: 20%;
+        float: left;
+    }
+}
+
+@media (min-width: 1200px) {
+    .col-lg-5ths {
+        width: 20%;
+        float: left;
+    }
+}
+
+.tooltip {
+    white-space: pre-wrap !important;
+}
 .aliases-index-alias {
 	border: 1px solid;
 	border-radius: 2px 2px 2px 2px;
@@ -574,6 +613,9 @@ a.cluster-map-node-action {
     right: 0;
     left: inherit;
 }
+.cluster-dropdown {
+    text-align: left;
+}
 
 .unassigned-row {
 	vertical-align: middle !important;
@@ -606,28 +648,6 @@ a.cluster-map-node-action {
     height: 14px;
 }
 
-.json-content {
-	font-size: 10px;
-	font-weight: 400;
-	color: #d0d0d0;
-	font-family: "Lucida Console", Monaco, monospace;
-}
-/* json property name style */
-.json-property {
-	font-weight: 500;
-}
-/* json object */
-.json-object {
-	padding-left: 2em;
-}
-/* visible object */
-.json-visible {
-	height: auto;
-}
-/* collapsed object */
-.json-collapsed {
-	display: none;
-}
 .dropdown-menu {
 	margin-top: 0px;
 	margin-left: 25px;
@@ -772,4 +792,8 @@ select.input-sm-twoxheight {
     white-space: nowrap;
     vertical-align: baseline;
     border-radius: .25em;
+}
+
+.hot-threads-output {
+    white-space: pre;
 }

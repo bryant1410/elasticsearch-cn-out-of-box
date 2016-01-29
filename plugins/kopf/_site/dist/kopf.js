@@ -642,6 +642,10 @@ kopf.controller('ClusterOverviewController', ['$scope', '$window',
 
     $scope.nodes = [];
 
+    $scope.relocatingShard = undefined;
+
+    $scope.expandedView = false;
+
     $($window).resize(function() {
       $scope.$apply(function() {
         $scope.index_paginator.setPageSize($scope.getPageSize());
@@ -700,6 +704,10 @@ kopf.controller('ClusterOverviewController', ['$scope', '$window',
       $scope.setIndices(ElasticService.getIndices());
     }, true);
 
+    $scope.selectShardRelocation = function(shard) {
+      $scope.relocatingShard = shard;
+    };
+
     $scope.setNodes = function(nodes) {
       $scope.nodes = nodes.filter(function(node) {
         return $scope.node_filter.matches(node);
@@ -709,20 +717,6 @@ kopf.controller('ClusterOverviewController', ['$scope', '$window',
     $scope.setIndices = function(indices) {
       $scope.index_paginator.setCollection(indices);
       $scope.page = $scope.index_paginator.getPage();
-    };
-
-    $scope.promptShutdownNode = function(nodeId, nodeName) {
-      ConfirmDialogService.open(
-              'are you sure you want to shutdown node ' + nodeName + '?',
-              'Shutting down a node will make all data stored in this node ' +
-              'inaccessible, unless it\'s replicated across other nodes.' +
-              'Replicated shards will be promoted to primary if the primary ' +
-              'shard is no longer reachable.',
-          'Shutdown',
-          function() {
-            ElasticService.shutdownNode(nodeId);
-          }
-      );
     };
 
     $scope.optimizeIndex = function(index) {
@@ -738,10 +732,10 @@ kopf.controller('ClusterOverviewController', ['$scope', '$window',
 
     $scope.promptOptimizeIndex = function(index) {
       ConfirmDialogService.open(
-              'are you sure you want to optimize index ' + index + '?',
-              'Optimizing an index is a resource intensive operation and ' +
-              'should be done with caution. Usually, you will only want to ' +
-              'optimize an index when it will no longer receive updates',
+          'are you sure you want to optimize index ' + index + '?',
+          'Optimizing an index is a resource intensive operation and ' +
+          'should be done with caution. Usually, you will only want to ' +
+          'optimize an index when it will no longer receive updates',
           'Optimize',
           function() {
             $scope.optimizeIndex(index);
@@ -762,9 +756,9 @@ kopf.controller('ClusterOverviewController', ['$scope', '$window',
 
     $scope.promptDeleteIndex = function(index) {
       ConfirmDialogService.open(
-              'are you sure you want to delete index ' + index + '?',
-              'Deleting an index cannot be undone and all data for this ' +
-              'index will be lost',
+          'are you sure you want to delete index ' + index + '?',
+          'Deleting an index cannot be undone and all data for this ' +
+          'index will be lost',
           'Delete',
           function() {
             $scope.deleteIndex(index);
@@ -786,7 +780,7 @@ kopf.controller('ClusterOverviewController', ['$scope', '$window',
 
     $scope.promptClearCache = function(index) {
       ConfirmDialogService.open(
-              'are you sure you want to clear the cache for ' + index + '?',
+          'are you sure you want to clear the cache for ' + index + '?',
           'This will clear all caches for this index.',
           'Clear',
           function() {
@@ -808,9 +802,9 @@ kopf.controller('ClusterOverviewController', ['$scope', '$window',
 
     $scope.promptRefreshIndex = function(index) {
       ConfirmDialogService.open(
-              'are you sure you want to refresh index ' + index + '?',
-              'Refreshing an index makes all operations performed since the ' +
-              'last refresh available for search.',
+          'are you sure you want to refresh index ' + index + '?',
+          'Refreshing an index makes all operations performed since the ' +
+          'last refresh available for search.',
           'Refresh',
           function() {
             $scope.refreshIndex(index);
@@ -844,10 +838,10 @@ kopf.controller('ClusterOverviewController', ['$scope', '$window',
 
     $scope.promptCloseIndex = function(index) {
       ConfirmDialogService.open(
-              'are you sure you want to close index ' + index + '?',
-              'Closing an index will remove all it\'s allocated shards from ' +
-              'the cluster.  Both searches and updates will no longer be ' +
-              'accepted for the index. A closed index can be reopened.',
+          'are you sure you want to close index ' + index + '?',
+          'Closing an index will remove all it\'s allocated shards from ' +
+          'the cluster.  Both searches and updates will no longer be ' +
+          'accepted for the index. A closed index can be reopened.',
           'Close index',
           function() {
             ElasticService.closeIndex(index);
@@ -857,12 +851,109 @@ kopf.controller('ClusterOverviewController', ['$scope', '$window',
 
     $scope.promptOpenIndex = function(index) {
       ConfirmDialogService.open(
-              'are you sure you want to open index ' + index + '?',
-              'Opening an index will trigger the recovery process. ' +
-              'This process could take sometime depending on the index size.',
+          'are you sure you want to open index ' + index + '?',
+          'Opening an index will trigger the recovery process. ' +
+          'This process could take sometime depending on the index size.',
           'Open index',
           function() {
             ElasticService.openIndex(index);
+          }
+      );
+    };
+
+    $scope.promptCloseIndices = function() {
+      var indices = $scope.index_paginator.getResults().map(function(index) {
+        return index.name;
+      });
+      ConfirmDialogService.open(
+          'are you sure you want to close all selected indices?',
+          'Closing an index will remove all it\'s allocated shards from ' +
+          'the cluster.  Both searches and updates will no longer be ' +
+          'accepted for the index. A closed index can be reopened.\n\n' +
+          'Selected indices:\n' + indices.join('\n'),
+          'Close index',
+          function() {
+            ElasticService.closeIndex(indices.join(','));
+          }
+      );
+    };
+
+    $scope.promptOpenIndices = function() {
+      var indices = $scope.index_paginator.getResults().map(function(index) {
+        return index.name;
+      });
+      ConfirmDialogService.open(
+          'are you sure you want to open all selected indices?',
+          'Opening an index will trigger the recovery process. ' +
+          'This process could take sometime depending on the index size.\n\n' +
+          'Selected indices:\n' + indices.join('\n'),
+          'Open index',
+          function() {
+            ElasticService.openIndex(indices.join(','));
+          }
+      );
+    };
+
+    $scope.promptRefreshIndices = function() {
+      var indices = $scope.index_paginator.getResults().map(function(index) {
+        return index.name;
+      });
+      ConfirmDialogService.open(
+          'are you sure you want to refresh all selected indices?',
+          'Refreshing an index makes all operations performed since the ' +
+          'last refresh available for search.\n\n' +
+          'Selected indices:\n' + indices.join('\n'),
+          'Refresh',
+          function() {
+            $scope.refreshIndex(indices.join(','));
+          }
+      );
+    };
+
+    $scope.promptClearCaches = function() {
+      var indices = $scope.index_paginator.getResults().map(function(index) {
+        return index.name;
+      });
+      ConfirmDialogService.open(
+          'are you sure you want to clear the cache for all selected indices?',
+          'This will clear all caches for this index.\n\n' +
+          'Selected indices:\n' + indices.join('\n'),
+          'Clear',
+          function() {
+            $scope.clearCache(indices.join(','));
+          }
+      );
+    };
+
+    $scope.promptDeleteIndices = function() {
+      var indices = $scope.index_paginator.getResults().map(function(index) {
+        return index.name;
+      });
+      ConfirmDialogService.open(
+          'are you sure you want to delete all selected indices?',
+          'Deleting an index cannot be undone and all data for this ' +
+          'index will be lost.\n\n' +
+          'Selected indices:\n' + indices.join('\n'),
+          'Delete',
+          function() {
+            $scope.deleteIndex(indices.join(','));
+          }
+      );
+    };
+
+    $scope.promptOptimizeIndices = function() {
+      var indices = $scope.index_paginator.getResults().map(function(index) {
+        return index.name;
+      });
+      ConfirmDialogService.open(
+          'are you sure you want to optimize all selected indices?',
+          'Optimizing an index is a resource intensive operation and ' +
+          'should be done with caution. Usually, you will only want to ' +
+          'optimize an index when it will no longer receive updates.\n\n' +
+          'Selected indices:\n' + indices.join('\n'),
+          'Optimize',
+          function() {
+            $scope.optimizeIndex(indices.join(','));
           }
       );
     };
@@ -909,6 +1000,64 @@ kopf.controller('ClusterOverviewController', ['$scope', '$window',
             AlertService.error('Error while loading shard stats', error);
           }
       );
+    };
+
+    $scope.relocateShard = function(shard, index, fromNode, toNode) {
+      ElasticService.relocateShard(shard, index, fromNode, toNode,
+          function(response) {
+            ElasticService.refresh();
+            $scope.relocatingShard = undefined;
+            AlertService.success('Relocation successfully executed', response);
+          },
+          function(error) {
+            $scope.relocatingShard = undefined;
+            AlertService.error('Error while moving shard', error);
+          }
+      );
+    };
+
+    /**
+     * Prompts confirmation dialog for relocating currently selected shard
+     * to the given node
+     * @param {string} toNode - target node id
+     */
+    $scope.promptRelocateShard = function(toNode) {
+      var shard = $scope.relocatingShard.shard;
+      var index = $scope.relocatingShard.index;
+      var fromNode = $scope.relocatingShard.node;
+      ConfirmDialogService.open(
+          'are you sure you want relocate the shard?',
+          'Once the relocation finishes, the cluster will try to ' +
+          'rebalance itself to an even state',
+          'Relocate',
+          function() {
+            $scope.relocateShard(shard, index, fromNode, toNode);
+          }
+      );
+    };
+
+    /**
+     * Evaluates if relocation target box should be displayed for the cell
+     * corresponding to the given index and node
+     *
+     * @param {Index} index - index
+     * @param {Node} node - target node
+     * @returns {boolean}
+     */
+    $scope.canReceiveShard = function(index, node) {
+      var shard = $scope.relocatingShard;
+      if (shard && index) { // in case num indices < num columns
+        if (shard.node !== node.id && shard.index === index.name) {
+          var shards = $scope.cluster.getShards(node.id, index.name);
+          var sameShard = function(s) {
+            return s.shard === shard.shard;
+          };
+          if (shards.filter(sameShard).length === 0) {
+            return true;
+          }
+        }
+      }
+      return false;
     };
 
   }
@@ -1072,7 +1221,7 @@ kopf.controller('GlobalController', ['$scope', '$location', '$sce', '$window',
   function($scope, $location, $sce, $window, AlertService, ElasticService,
            ExternalSettingsService, PageService) {
 
-    $scope.version = '1.5.2';
+    $scope.version = '2.0.0';
 
     $scope.modal = new ModalControls();
 
@@ -1136,7 +1285,7 @@ kopf.controller('HotThreadsController', ['$scope', 'ElasticService',
 
     $scope.types = ['cpu', 'wait', 'block'];
 
-    $scope.interval = 500;
+    $scope.interval = '500ms';
 
     $scope.threads = 3;
 
@@ -1367,10 +1516,12 @@ kopf.controller('NavbarController', ['$scope', '$location',
             $scope.clusterStatus = ElasticService.cluster.status;
             $scope.clusterName = ElasticService.cluster.name;
             $scope.fetchedAt = ElasticService.cluster.fetched_at;
+            $scope.nodeName = ElasticService.nodeName;
           } else {
             $scope.clusterStatus = undefined;
             $scope.clusterName = undefined;
             $scope.fetchedAt = undefined;
+            $scope.nodeName = undefined;
           }
         }
     );
@@ -1384,7 +1535,7 @@ kopf.controller('NavbarController', ['$scope', '$location',
     $scope.connectToHost = function(host) {
       try {
         ElasticService.connect(host);
-        HostHistoryService.addToHistory(ElasticService.connection.host);
+        HostHistoryService.addToHistory(ElasticService.connection);
         $scope.host_history = HostHistoryService.getHostHistory();
       } catch (error) {
         AlertService.error('Error while connecting to new target host', error);
@@ -1457,20 +1608,6 @@ kopf.controller('NodesController', ['$scope', 'ConfirmDialogService',
           },
           function(error) {
             AlertService.error('Error while loading node stats', error);
-          }
-      );
-    };
-
-    $scope.promptShutdownNode = function(nodeId, nodeName) {
-      ConfirmDialogService.open(
-          'are you sure you want to shutdown node ' + nodeName + '?',
-          'Shutting down a node will make all data stored in this node ' +
-          'inaccessible, unless it\'s replicated across other nodes.' +
-          'Replicated shards will be promoted to primary if the primary ' +
-          'shard is no longer reachable.',
-          'Shutdown',
-          function() {
-            ElasticService.shutdownNode(nodeId);
           }
       );
     };
@@ -1638,9 +1775,9 @@ kopf.controller('PercolatorController', ['$scope', 'ConfirmDialogService',
 ]);
 
 kopf.controller('RestController', ['$scope', '$location', '$timeout',
-  'AlertService', 'AceEditorService', 'ElasticService',
+  'AlertService', 'AceEditorService', 'ElasticService', 'ClipboardService',
   function($scope, $location, $timeout, AlertService, AceEditorService,
-           ElasticService) {
+           ElasticService, ClipboardService) {
 
     $scope.request = new Request('/_search', 'GET', '{}');
 
@@ -1649,6 +1786,26 @@ kopf.controller('RestController', ['$scope', '$location', '$timeout',
     $scope.history = [];
 
     $scope.editor = null;
+
+    $scope.copyAsCURLCommand = function() {
+      var method = $scope.request.method;
+      var host = ElasticService.getHost();
+      var path = $scope.request.path;
+      var body = $scope.editor.getValue();
+      var curl = 'curl -X' + method + ' \'' + host + path + '\'';
+      if (['POST', 'PUT'].indexOf(method) >= 0) {
+        curl += ' -d \'' + body + '\'';
+      }
+      ClipboardService.copy(
+          curl,
+          function() {
+            AlertService.info('cURL request successfully copied to clipboard');
+          },
+          function() {
+            AlertService.error('Error while copying request to clipboard');
+          }
+      );
+    };
 
     $scope.loadHistory = function() {
       var history = [];
@@ -1843,10 +2000,8 @@ kopf.controller('SnapshotController', ['$scope', 'ConfirmDialogService',
         body.indices = $scope.restore_snap.indices.join(',');
       }
 
-      if (angular.isDefined($scope.restore_snap.include_global_state)) {
-        body.include_global_state = $scope.restore_snap.include_global_state;
-      }
-
+      $scope.optionalParam(body, $scope.restore_snap, 'include_global_state');
+      $scope.optionalParam(body, $scope.restore_snap, 'include_aliases');
       $scope.optionalParam(body, $scope.restore_snap, 'ignore_unavailable');
       $scope.optionalParam(body, $scope.restore_snap, 'rename_replacement');
       $scope.optionalParam(body, $scope.restore_snap, 'rename_pattern');
@@ -2117,7 +2272,8 @@ kopf.directive('ngPagination', ['$document', function($document) {
   return {
     scope: {
       paginator: '=paginator',
-      page: '=page'
+      page: '=page',
+      label: '=label'
     },
     templateUrl: './partials/directives/pagination.html',
     link: function(scope, element, attrs) {
@@ -2778,6 +2934,12 @@ function HotThread(header) {
   this.stack = [];
 }
 
+function HotThreads(data) {
+  this.nodes_hot_threads = data.split(':::').slice(1).map(function(data) {
+    return new NodeHotThreads(data);
+  });
+}
+
 function Index(indexName, clusterState, indexStats, aliases) {
   this.name = indexName;
   this.shards = null;
@@ -2792,10 +2954,6 @@ function Index(indexName, clusterState, indexStats, aliases) {
       this.aliases = Object.keys(aliases.aliases);
     }
   }
-
-  this.visibleAliases = function() {
-    return this.aliases.length > 5 ? this.aliases.slice(0, 5) : this.aliases;
-  };
 
   if (isDefined(clusterState)) {
     var routing = getProperty(clusterState, 'routing_table.indices');
@@ -2927,8 +3085,8 @@ function Node(nodeId, nodeStats, nodeInfo) {
   this.elasticVersion = nodeInfo.version;
   this.jvmVersion = nodeInfo.jvm.version;
   this.availableProcessors = nodeInfo.os.available_processors;
-  this.transportAddress = parseAddress(nodeInfo.transport_address);
-  this.host = nodeStats.host;
+  this.transportAddress = nodeInfo.transport_address;
+  this.host = nodeInfo.host;
 
   var attributes = getProperty(nodeInfo, 'attributes', {});
   var master = attributes.master === 'false' ? false : true;
@@ -2959,13 +3117,9 @@ function Node(nodeId, nodeStats, nodeInfo) {
   var usedRatio = (diskUsedInBytes / this.disk_total_in_bytes);
   this.disk_used_percent = Math.round(100 * usedRatio);
 
-  this.cpu_user = getProperty(this.stats, 'os.cpu.user');
-  this.cpu_sys = getProperty(this.stats, 'os.cpu.sys');
-  this.cpu = this.cpu_user + this.cpu_sys;
+  this.cpu = getProperty(this.stats, 'process.cpu.percent');
 
   this.load_average = getProperty(this.stats, 'os.load_average');
-
-  this.minuteAverage = this.load_average ? this.load_average[0] : 0;
 
   this.setCurrentMaster = function() {
     this.current_master = true;
@@ -2975,30 +3129,34 @@ function Node(nodeId, nodeStats, nodeInfo) {
     return node.id === this.id;
   };
 
-  function parseAddress(address) {
-    return address.substring(address.indexOf('/') + 1, address.length - 1);
-  }
-
 }
 
 function NodeHotThreads(data) {
   var lines = data.split('\n');
   this.header = lines[0];
-  this.subHeader = lines[1];
+  // pre 4859ce5d79a786b58b1cd2fb131614677efd6b91
+  var BackwardCompatible = lines[1].indexOf('Hot threads at') == -1;
+  var HeaderLines = BackwardCompatible ? 2 : 3;
+  this.subHeader = BackwardCompatible ? undefined : lines[1];
   this.node = this.header.substring(
       this.header.indexOf('[') + 1,
       this.header.indexOf(']')
   );
   var threads = [];
   var thread;
-  if (lines.length > 3) {
-    lines.slice(3).forEach(function(line) {
-      if (line.indexOf('       ') === 0) {
-        thread.stack.push(line);
-      } else if (line.indexOf('     ') === 0) {
-        thread.subHeader = line;
-      }
-      else if (line.indexOf('    ') === 0) {
+  if (lines.length > HeaderLines) {
+    lines.slice(HeaderLines).forEach(function(line) {
+      var blankLine = line.trim().length === 0;
+      if (thread) {
+        if (thread.subHeader) {
+          thread.stack.push(line);
+          if (blankLine) {
+            thread = undefined;
+          }
+        } else {
+          thread.subHeader = line;
+        }
+      } else {
         thread = new HotThread(line);
         threads.push(thread);
       }
@@ -3261,6 +3419,11 @@ function AceEditor(target) {
   this.editor.setFontSize('10px');
   this.editor.setTheme('ace/theme/kopf');
   this.editor.getSession().setMode('ace/mode/json');
+  this.editor.setOptions({
+    fontFamily: 'monospace',
+    fontSize: '13px',
+    fontWeight: '400'
+  });
 
   // validation error
   this.error = null;
@@ -3281,7 +3444,7 @@ function AceEditor(target) {
     try {
       if (isDefined(content) && content.trim().length > 0) {
         this.error = null;
-        content = JSON.stringify(JSON.parse(content), undefined, 4);
+        content = JSON.stringify(JSON.parse(content), undefined, 2);
         this.editor.setValue(content, 0);
         this.editor.gotoLine(0, 0, false);
       }
@@ -3969,6 +4132,33 @@ kopf.factory('AlertService', function() {
   return this;
 });
 
+kopf.factory('ClipboardService', ['AlertService', '$document', '$window',
+  function(AlertService, $document, $window) {
+    var textarea = angular.element($document[0].createElement('textarea'));
+    textarea.css({
+      position: 'absolute',
+      left: '-9999px',
+      top: (
+          $window.pageYOffset || $document[0].documentElement.scrollTop
+      ) + 'px'
+    });
+    textarea.attr({readonly: ''});
+    angular.element($document[0].body).append(textarea);
+
+    this.copy = function(value, success, failure) {
+      try {
+        textarea.val(value);
+        textarea.select();
+        $document[0].execCommand('copy');
+        success();
+      } catch (error) {
+        failure();
+      }
+    };
+
+    return this;
+  }]);
+
 kopf.factory('DebugService', ['$filter', function($filter) {
 
   var MaxMessages = 1000;
@@ -4024,6 +4214,16 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
 
     this.brokenCluster = false;
 
+    this.nodeName = undefined; // node running on target host
+
+    this.encodeURIComponent = function(text) {
+      return encodeURIComponent(text);
+    };
+
+    var encode = function(text) {
+      return instance.encodeURIComponent(text);
+    };
+
     /**
      * Resets service state
      */
@@ -4031,6 +4231,7 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
       this.connection = undefined;
       this.connected = false;
       this.cluster = undefined;
+      this.nodeName = undefined;
     };
 
     this.getIndices = function() {
@@ -4105,6 +4306,7 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
               instance.connect(host + '/');
             } else {
               instance.setVersion(data.version.number);
+              instance.nodeName = data.name;
               instance.connected = true;
               if (!instance.autoRefreshStarted) {
                 instance.autoRefreshStarted = true;
@@ -4181,7 +4383,7 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
      * @callback error - invoked on error
      */
     this.createIndex = function(name, settings, success, error) {
-      var path = '/' + name;
+      var path = '/' + encode(name);
       this.clusterRequest('POST', path, {}, settings, success, error);
     };
 
@@ -4218,31 +4420,12 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
     };
 
     /**
-     * Shutdowns node
-     *
-     * @param {string} nodeId - id of node to be shutdown
-     * @callback success - invoked on success
-     * @callback error - invoked on error
-     */
-    this.shutdownNode = function(nodeId) {
-      var path = '/_cluster/nodes/' + nodeId + '/_shutdown';
-      var success = function(data) {
-        AlertService.success('Node [' + nodeId + '] was shutdown', data);
-        instance.refresh();
-      };
-      var error = function(error) {
-        AlertService.error('Error while shutting down node', error);
-      };
-      this.clusterRequest('POST', path, {}, {}, success, error);
-    };
-
-    /**
      * Opens index
      *
      * @param {string} index - index name
      */
     this.openIndex = function(index) {
-      var path = '/' + index + '/_open';
+      var path = '/' + encode(index) + '/_open';
       var success = function(response) {
         AlertService.success('Index was successfully opened', response);
         instance.refresh();
@@ -4261,7 +4444,7 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
      * @callback error - invoked on error
      */
     this.optimizeIndex = function(index, success, error) {
-      var path = '/' + index + '/_optimize';
+      var path = '/' + encode(index) + '/_optimize';
       this.clusterRequest('POST', path, {}, {}, success, error);
     };
 
@@ -4273,7 +4456,7 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
      * @callback error - invoked on error
      */
     this.clearCache = function(index, success, error) {
-      var path = '/' + index + '/_cache/clear';
+      var path = '/' + encode(index) + '/_cache/clear';
       this.clusterRequest('POST', path, {}, {}, success, error);
     };
 
@@ -4283,7 +4466,7 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
      * @param {string} index - index name
      */
     this.closeIndex = function(index) {
-      var path = '/' + index + '/_close';
+      var path = '/' + encode(index) + '/_close';
       var success = function(response) {
         AlertService.success('Index was successfully closed', response);
         instance.refresh();
@@ -4302,7 +4485,7 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
      * @callback error - invoked on error
      */
     this.refreshIndex = function(index, success, error) {
-      var path = '/' + index + '/_refresh';
+      var path = '/' + encode(index) + '/_refresh';
       this.clusterRequest('POST', path, {}, {}, success, error);
     };
 
@@ -4314,7 +4497,7 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
      * @callback error - invoked on error
      */
     this.deleteIndex = function(index, success, error) {
-      var path = '/' + index;
+      var path = '/' + encode(index);
       this.clusterRequest('DELETE', path, {}, {}, success, error);
     };
 
@@ -4327,7 +4510,7 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
      * @callback error - invoked on error
      */
     this.updateIndexSettings = function(name, settings, success, error) {
-      var path = '/' + name + '/_settings';
+      var path = '/' + encode(name) + '/_settings';
       this.clusterRequest('PUT', path, {}, settings, success, error);
     };
 
@@ -4351,7 +4534,7 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
      * @callback error - invoked on error
      */
     this.deleteWarmer = function(warmer, success, error) {
-      var path = '/' + warmer.index + '/_warmer/' + warmer.id;
+      var path = '/' + encode(warmer.index) + '/_warmer/' + encode(warmer.id);
       this.clusterRequest('DELETE', path, {}, {}, success, error);
     };
 
@@ -4364,7 +4547,7 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
      * @callback error - invoked on error
      */
     this.deletePercolatorQuery = function(index, id, success, error) {
-      var path = '/' + index + '/.percolator/' + id;
+      var path = '/' + encode(index) + '/.percolator/' + encode(id);
       this.clusterRequest('DELETE', path, {}, {}, success, error);
     };
 
@@ -4376,7 +4559,9 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
      * @callback error - invoked on error
      */
     this.createPercolatorQuery = function(percolator, success, error) {
-      var path = '/' + percolator.index + '/.percolator/' + percolator.id;
+      var index = percolator.index;
+      var id = percolator.id;
+      var path = '/' + encode(index) + '/.percolator/' + encode(id);
       this.clusterRequest('PUT', path, {}, percolator.source, success, error);
     };
 
@@ -4389,7 +4574,7 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
      * @callback error - invoked on error
      */
     this.createRepository = function(repository, body, success, error) {
-      var path = '/_snapshot/' + repository;
+      var path = '/_snapshot/' + encode(repository);
       this.clusterRequest('POST', path, {}, body, success, error);
     };
 
@@ -4401,7 +4586,7 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
      * @callback error - invoked on error
      */
     this.deleteRepository = function(repository, success, error) {
-      var path = '/_snapshot/' + repository;
+      var path = '/_snapshot/' + encode(repository);
       this.clusterRequest('DELETE', path, {}, {}, success, error);
     };
 
@@ -4414,7 +4599,7 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
      * @callback error - invoked on error
      */
     this.deleteSnapshot = function(repository, snapshot, success, error) {
-      var path = '/_snapshot/' + repository + '/' + snapshot;
+      var path = '/_snapshot/' + encode(repository) + '/' + encode(snapshot);
       this.clusterRequest('DELETE', path, {}, {}, success, error);
     };
 
@@ -4428,7 +4613,8 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
      * @callback error - invoked on error
      */
     this.restoreSnapshot = function(repository, name, body, success, error) {
-      var path = '/_snapshot/' + repository + '/' + name + '/_restore';
+      var path = '/_snapshot/' + encode(repository);
+      path += '/' + encode(name) + '/_restore';
       this.clusterRequest('POST', path, {}, body, success, error);
     };
 
@@ -4442,7 +4628,7 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
      * @callback error - invoked on error
      */
     this.createSnapshot = function(repository, snapshot, body, success, error) {
-      var path = '/_snapshot/' + repository + '/' + snapshot;
+      var path = '/_snapshot/' + encode(repository) + '/' + encode(snapshot);
       this.clusterRequest('PUT', path, {}, body, success, error);
     };
 
@@ -4466,11 +4652,11 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
      * @callback error - invoked on error
      */
     this.registerWarmer = function(warmer, success, error) {
-      var path = '/' + warmer.index;
+      var path = '/' + encode(warmer.index);
       if (notEmpty(warmer.types)) {
-        path += '/' + warmer.types;
+        path += '/' + encode(warmer.types);
       }
-      path += '/_warmer/' + warmer.id.trim();
+      path += '/_warmer/' + encode(warmer.id.trim());
       var body = warmer.source;
       this.clusterRequest('PUT', path, {}, body, success, error);
     };
@@ -4502,7 +4688,7 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
      * @callback error - invoked on error
      */
     this.deleteIndexTemplate = function(name, success, error) {
-      var path = '/_template/' + name;
+      var path = '/_template/' + encode(name);
       this.clusterRequest('DELETE', path, {}, {}, success, error);
     };
 
@@ -4514,7 +4700,7 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
      * @callback error - invoked on error
      */
     this.createIndexTemplate = function(template, success, error) {
-      var path = '/_template/' + template.name;
+      var path = '/_template/' + encode(template.name);
       var body = template.body;
       this.clusterRequest('PUT', path, {}, body, success, error);
     };
@@ -4537,12 +4723,39 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
     };
 
     /**
+     * Relocates a shard to a given node
+     * @param {string} shard - The shard to be relocated
+     * @param {string} index - The index the shard belongs to
+     * @param {string} fromNode - Node where shard is currently located
+     * @param {string} toNode - Target node for shard relocation
+     * @callback success
+     * @callback error
+     */
+    this.relocateShard = function(shard, index, fromNode, toNode,
+                                  success, error) {
+      var path = '/_cluster/reroute';
+      var body = {
+        commands: [
+          {
+            move: {
+              shard: shard,
+              index: index,
+              from_node: fromNode,
+              to_node: toNode
+            }
+          }
+        ]
+      };
+      this.clusterRequest('POST', path, {}, body, success, error);
+    };
+
+    /**
      * Executes cat api request
      * @callback success
      * @callback error
      */
     this.executeCatRequest = function(api, success, error) {
-      var path = '/_cat/' + api + '?v';
+      var path = '/_cat/' + encode(api) + '?v';
       var parseCat = function(response) {
         success(new CatResult(response));
       };
@@ -4562,7 +4775,7 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
      */
     this.getHotThreads = function(node, type, threads, interval,
                                   ignoreIdleThreads, success, error) {
-      var path = '/_nodes' + (node ? '/' + node : '') + '/hot_threads';
+      var path = '/_nodes' + (node ? '/' + encode(node) : '') + '/hot_threads';
       var params = {
         type: type,
         threads: threads,
@@ -4570,9 +4783,7 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
         interval: interval
       };
       var parseHotThreads = function(response) {
-        var threads = response.split('::: ').slice(1).map(function(data) {
-          return new NodeHotThreads(data);
-        });
+        var threads = new HotThreads(response).nodes_hot_threads;
         success(threads);
       };
       this.clusterRequest('GET', path, params, {}, parseHotThreads, error);
@@ -4582,7 +4793,7 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
       var transformed = function(response) {
         success(new IndexMetadata(name, response.metadata.indices[name]));
       };
-      var path = '/_cluster/state/metadata/' + name + '?human';
+      var path = '/_cluster/state/metadata/' + encode(name) + '?human';
       this.clusterRequest('GET', path, {}, {}, transformed, error);
     };
 
@@ -4590,7 +4801,7 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
       var transformed = function(response) {
         success(new NodeStats(name, response.nodes[nodeId]));
       };
-      var path = '/_nodes/' + nodeId + '/stats?human';
+      var path = '/_nodes/' + encode(nodeId) + '/stats?human';
       this.clusterRequest('GET', path, {}, {}, transformed, error);
     };
 
@@ -4607,9 +4818,14 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
       var params = {};
       this.addAuth(params);
       $q.all([
-        $http.get(host + '/' + index + '/_stats?level=shards&human', params),
-        $http.get(host + '/' + index + '/_recovery?active_only=true&human',
-            params)
+        $http.get(
+            host + '/' + encode(index) + '/_stats?level=shards&human',
+            params
+        ),
+        $http.get(
+            host + '/' + encode(index) + '/_recovery?active_only=true&human',
+            params
+        )
       ]).then(
           function(responses) {
             try {
@@ -4672,7 +4888,8 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
         });
         success(tokens);
       };
-      var path = '/' + index + '/_analyze?field=' + type + '.' + field;
+      var path = '/' + encode(index) + '/_analyze?field=';
+      path += encode(type) + '.' + encode(field);
       this.clusterRequest('POST', path, {}, text, buildTokens, error);
     };
 
@@ -4683,12 +4900,12 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
         });
         success(tokens);
       };
-      var path = '/' + index + '/_analyze?analyzer=' + analyzer;
+      var path = '/' + encode(index) + '/_analyze?analyzer=' + encode(analyzer);
       this.clusterRequest('POST', path, {}, text, buildTokens, error);
     };
 
     this.getIndexWarmers = function(index, warmer, success, error) {
-      var path = '/' + index + '/_warmer/' + warmer.trim();
+      var path = '/' + encode(index) + '/_warmer/' + encode(warmer.trim());
       var parseWarmers = function(response) {
         var warmers = [];
         Object.keys(response).forEach(function(i) {
@@ -4704,7 +4921,7 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
     };
 
     this.fetchPercolateQueries = function(index, query, success, error) {
-      var path = '/' + index + '/.percolator/_search';
+      var path = '/' + encode(index) + '/.percolator/_search';
       var parsePercolators = function(response) {
         var collection = response.hits.hits.map(function(q) {
           return new PercolateQuery(q);
@@ -4731,7 +4948,7 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
     };
 
     this.getSnapshots = function(repository, success, error) {
-      var path = '/_snapshot/' + repository + '/_all';
+      var path = '/_snapshot/' + encode(repository) + '/_all';
       var parseSnapshots = function(response) {
         var snapshots = response.snapshots.map(function(snapshot) {
           return new Snapshot(snapshot);
@@ -4766,11 +4983,13 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
       var host = this.connection.host;
       var params = {};
       this.addAuth(params);
+      // FIXME: remove routing_table after 2.0 cut
       $q.all([
         $http.get(host +
-        '/_cluster/state/master_node,routing_table,blocks/', params),
+        '/_cluster/state/master_node,routing_table,routing_nodes,blocks/',
+            params),
         $http.get(host + '/_stats/docs,store', params),
-        $http.get(host + '/_nodes/stats/jvm,fs,os', params),
+        $http.get(host + '/_nodes/stats/jvm,fs,os,process', params),
         $http.get(host + '/_cluster/settings', params),
         $http.get(host + '/_aliases', params),
         $http.get(host + '/_cluster/health', params),
@@ -4785,10 +5004,9 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
               var aliases = responses[4].data;
               var health = responses[5].data;
               var nodes = responses[6].data;
-              success(
-                  new Cluster(health, state, indexStats, nodesStats, settings,
-                      aliases, nodes)
-              );
+              var cluster = new Cluster(health, state, indexStats, nodesStats,
+                  settings, aliases, nodes);
+              success(cluster);
             } catch (exception) {
               DebugService.debug('Error parsing cluster data:', exception);
               DebugService.debug('REST APIs output:', responses);
@@ -4822,9 +5040,9 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
               var settings = responses[2].data;
               var health = responses[3].data;
               var nodes = responses[4].data;
-              success(
-                  new BrokenCluster(health, state, nodesStats, settings, nodes)
-              );
+              var cluster = new BrokenCluster(health, state, nodesStats,
+                  settings, nodes);
+              success(cluster);
             } catch (exception) {
               DebugService.debug('Error parsing cluster data:', exception);
               DebugService.debug('REST APIs output:', responses);
@@ -4889,6 +5107,7 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
                   }
                 },
                 function(response) {
+                  AlertService.error('Error loading cluster data', response);
                   instance.cluster = undefined;
                 }
             );
@@ -4912,6 +5131,7 @@ kopf.factory('ElasticService', ['$http', '$q', '$timeout', '$location',
                     AlertService.error(message);
                     instance.setBrokenCluster(true);
                   } else {
+                    AlertService.error('Error loading cluster data', response);
                     instance.cluster = undefined;
                   }
                 }
@@ -5089,9 +5309,16 @@ kopf.factory('HostHistoryService', function() {
     return JSON.parse(history);
   };
 
-  this.addToHistory = function(host) {
-    host = host.toLowerCase();
-    var hostEntry = {host: host};
+  this.addToHistory = function(connection) {
+    var host = connection.host.toLowerCase();
+    var username = connection.username;
+    var password = connection.password;
+    if (username && password) {
+      host = host.replace(/^(https|http):\/\//gi, function addAuth(prefix) {
+        return prefix + username + ':' + password + '@';
+      });
+    }
+    var entry = {host: host};
     var history = this.getHostHistory();
     for (var i = 0; i < history.length; i++) {
       if (history[i].host === host) {
@@ -5099,7 +5326,7 @@ kopf.factory('HostHistoryService', function() {
         break;
       }
     }
-    history.splice(0, 0, hostEntry);
+    history.splice(0, 0, entry);
     if (history.length > 10) {
       history.length = 10;
     }
